@@ -12,7 +12,7 @@ tape.test("converters", function(test) {
 
         test.test(test.name + " - Message#toObject", function(test) {
 
-            test.plan(6);
+            test.plan(8);
 
             test.test(test.name + " - called with defaults = true", function(test) {
                 var obj = Message.toObject(Message.create(), { defaults: true });
@@ -146,7 +146,59 @@ tape.test("converters", function(test) {
                 }
 
                 test.end();
-            });            
+            });
+
+            test.test(test.name + " - Message.toObject does not evaluate bytes array defaults as code", function(test) {
+                var root = protobuf.Root.fromJSON({
+                    nested: {
+                        Injected: {
+                            fields: {
+                                bytes: {
+                                    type: "bytes",
+                                    id: 1,
+                                    options: {
+                                        "default": [ "(global.__protobufjsBytesDefaultInjected = true)" ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                var Injected = root.lookupType("Injected");
+                try {
+                    var obj = Injected.toObject({}, { defaults: true, bytes: Array });
+                    test.equal(global.__protobufjsBytesDefaultInjected, undefined, "should not execute code from bytes array defaults");
+                    test.same(obj.bytes, [ "(global.__protobufjsBytesDefaultInjected = true)" ], "should emit bytes array defaults as literals");
+                } finally {
+                    delete global.__protobufjsBytesDefaultInjected;
+                }
+
+                test.end();
+            });
+
+            test.test(test.name + " - Message.toObject with bytes array defaults", function(test) {
+                var root = protobuf.Root.fromJSON({
+                    nested: {
+                        Defaults: {
+                            fields: {
+                                bytes: {
+                                    type: "bytes",
+                                    id: 1,
+                                    options: {
+                                        "default": [ "not_a_number" ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                var Defaults = root.lookupType("Defaults");
+                var obj = Defaults.toObject({}, { defaults: true, bytes: Array });
+
+                test.same(obj.bytes, [ "not_a_number" ], "should preserve bytes array defaults");
+
+                test.end();
+            });
 
         });
 

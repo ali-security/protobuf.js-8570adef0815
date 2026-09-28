@@ -129,6 +129,42 @@ tape.test("writer & reader", function(test) {
         test.end();
     });
 
+    test.throws(function() {
+      const root = protobuf.Root.fromJSON({
+        nested: {
+          MyMessage: {
+            fields: {
+              name: { type: "string", id: 1 }
+            }
+          }
+        }
+      });
+      const MyMessage = root.lookupType("MyMessage");
+      // 0x7B (field 15, wire type 3 = start group)
+      const payload = Buffer.alloc(50000, 0x7B);
+      MyMessage.decode(payload);
+    }, /maximum nesting depth exceeded/, "limits recursion in reader");
+
+    test.test(test.name + " - overlong utf8 strings", function(test) {
+        var root = protobuf.Root.fromJSON({
+            nested: {
+                StringMessage: {
+                    fields: {
+                        name: { type: "string", id: 1 }
+                    }
+                }
+            }
+        });
+        var StringMessage = root.lookupType("StringMessage");
+        // field 1, wire type 2, length 2, overlong encoding of "/" (U+002F)
+        var payload = new Uint8Array([0x0A, 0x02, 0xC0, 0xAF]);
+        var reader = Reader.create(payload);
+        test.notOk(reader instanceof protobuf.BufferReader, "should use the array reader for plain Uint8Arrays");
+        test.equal(StringMessage.decode(reader).name, "�", "should decode overlong UTF-8 sequences as replacement characters");
+        test.equal(new Reader(new Uint8Array([0x03, 0xE0, 0x80, 0xAF])).string(), "�", "should not decode overlong UTF-8 sequences to ASCII");
+        test.end();
+    });
+
     test.end();
 });
 
